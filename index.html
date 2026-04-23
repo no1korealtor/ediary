@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 감정 일기</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #6366f1;
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+    }
+    body {
+      font-family: 'Pretendard', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .app-container {
+      background-color: var(--card-bg);
+      width: 100%;
+      max-width: 480px;
+      padding: 35px;
+      border-radius: 24px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.04);
+      box-sizing: border-box;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+      margin-top: 0;
+      margin-bottom: 25px;
+      text-align: center;
+      color: var(--text-main);
+    }
+    textarea {
+      width: 100%;
+      height: 140px;
+      padding: 18px;
+      border: 2px solid #e2e8f0;
+      border-radius: 16px;
+      resize: none;
+      font-size: 16px;
+      font-family: inherit;
+      box-sizing: border-box;
+      margin-bottom: 20px;
+      transition: all 0.3s ease;
+      background-color: #f8fafc;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      background-color: #ffffff;
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+    }
+    textarea::placeholder {
+      color: #94a3b8;
+    }
+    .button-group {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 35px;
+    }
+    button {
+      flex: 1;
+      padding: 14px 0;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    button:active {
+      transform: scale(0.97);
+    }
+    .btn-voice {
+      background-color: #eef2ff;
+      color: var(--primary-color);
+    }
+    .btn-voice:hover {
+      background-color: #e0e7ff;
+    }
+    .btn-analyze {
+      background-color: var(--primary-color);
+      color: white;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+    .btn-analyze:hover {
+      background-color: #4f46e5;
+      box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+    }
+    .ai-response-section h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-top: 0;
+      margin-bottom: 15px;
+      color: var(--text-main);
+    }
+    .ai-response-box {
+      background-color: #f1f5f9;
+      padding: 24px;
+      border-radius: 16px;
+      color: var(--text-muted);
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 1.6;
+      font-size: 15px;
+      border: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <h1>오늘 하루는 어땠나요?</h1>
+    <textarea id="diaryInput" placeholder="이곳에 오늘 있었던 일이나 느낀 감정을 편하게 적어주세요..."></textarea>
+    
+    <div class="button-group">
+      <button class="btn-voice" id="voiceBtn">🎤 음성으로 입력하기</button>
+      <button class="btn-analyze" id="analyzeBtn">✨ 분석 요청하기</button>
+    </div>
+
+    <div class="ai-response-section">
+      <h2>AI의 답변</h2>
+      <div class="ai-response-box" id="aiResponse">
+        여기에 AI의 답변이 표시됩니다.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const diaryInput = document.getElementById('diaryInput');
+    const voiceBtn = document.getElementById('voiceBtn');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const aiResponse = document.getElementById('aiResponse');
+    
+    // 저장된 데이터 불러오기
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedDiary = localStorage.getItem('diaryText');
+      const savedResponse = localStorage.getItem('aiResponse');
+      
+      if (savedDiary) {
+        diaryInput.value = savedDiary;
+      }
+      if (savedResponse) {
+        aiResponse.innerHTML = savedResponse;
+      }
+    });
+
+    // 사용자가 직접 타이핑할 때 일기 내용 저장
+    diaryInput.addEventListener('input', () => {
+      localStorage.setItem('diaryText', diaryInput.value);
+    });
+
+    // Web Speech API 지원 여부 확인
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition;
+
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.continuous = true; // 계속 들을지 여부
+      recognition.interimResults = true; // 중간 결과를 보여줄지 여부
+      recognition.lang = 'ko-KR'; // 한국어 설정
+      
+      let isRecording = false;
+
+      // 음성 인식 시작 이벤트
+      recognition.onstart = function() {
+        isRecording = true;
+        voiceBtn.innerHTML = '🔴 녹음 중지하기';
+        voiceBtn.style.backgroundColor = '#fee2e2'; // 부드러운 붉은색
+        voiceBtn.style.color = '#ef4444';
+      };
+
+      // 음성 인식 결과 이벤트
+      recognition.onresult = function(event) {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+           if (event.results[i].isFinal) {
+             finalTranscript += event.results[i][0].transcript;
+           } else {
+             interimTranscript += event.results[i][0].transcript;
+           }
+        }
+        
+        // 최종 변환된 텍스트를 textarea에 추가
+        if (finalTranscript) {
+          diaryInput.value += finalTranscript + ' ';
+          localStorage.setItem('diaryText', diaryInput.value);
+        }
+      };
+
+      // 음성 인식 종료 이벤트
+      recognition.onend = function() {
+        // 만약 버튼을 직접 누르지 않았는데 끝났다면(예: 말이 길게 멈춘 경우) 버튼 상태 원상복구
+        if (isRecording) {
+          isRecording = false;
+          voiceBtn.innerHTML = '🎤 음성으로 입력하기';
+          voiceBtn.style.backgroundColor = '#eef2ff';
+          voiceBtn.style.color = 'var(--primary-color)';
+        }
+      };
+
+      recognition.onerror = function(event) {
+        console.error('음성 인식 에러:', event.error);
+        if(event.error === 'not-allowed') {
+          alert('마이크 접근 권한을 허용해주세요.');
+        }
+      };
+
+      // 버튼 클릭 이벤트 리스너
+      voiceBtn.addEventListener('click', function() {
+        if (!isRecording) {
+          recognition.start();
+        } else {
+          recognition.stop();
+          isRecording = false;
+          voiceBtn.innerHTML = '🎤 음성으로 입력하기';
+          voiceBtn.style.backgroundColor = '#eef2ff';
+          voiceBtn.style.color = 'var(--primary-color)';
+        }
+      });
+    } else {
+      voiceBtn.addEventListener('click', function() {
+        alert('이 브라우저는 음성 인식 기능을 지원하지 않습니다. Chrome 브라우저를 이용해주세요.');
+      });
+    }
+
+    // Gemini API 분석 요청 로직
+    analyzeBtn.addEventListener('click', async function() {
+      const text = diaryInput.value.trim();
+      if (!text) {
+        alert('먼저 일기 내용을 입력해주세요.');
+        return;
+      }
+
+      // UI 상태 변경: 로딩 중
+      analyzeBtn.disabled = true;
+      analyzeBtn.innerHTML = '⏳ 분석 중...';
+      aiResponse.innerHTML = 'AI가 일기를 읽고 분석하고 있습니다. 잠시만 기다려주세요...';
+
+      try {
+        // Vercel Serverless Function 호출
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text })
+        });
+
+        if (!response.ok) {
+          throw new Error(`서버 오류: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const aiText = data.result;
+        
+        // 결과 표시 (줄바꿈 처리)
+        const formattedResponse = aiText.replace(/\n/g, '<br>');
+        aiResponse.innerHTML = formattedResponse;
+        
+        // AI 답변을 로컬 스토리지에 저장
+        localStorage.setItem('aiResponse', formattedResponse);
+
+      } catch (error) {
+        console.error('API 요청 에러:', error);
+        aiResponse.innerHTML = '⚠️ 오류 발생: ' + error.message;
+      } finally {
+        analyzeBtn.disabled = false;
+        analyzeBtn.innerHTML = '✨ 분석 요청하기';
+      }
+    });
+  </script>
+</body>
+</html>
