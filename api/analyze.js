@@ -54,6 +54,55 @@ export default async function handler(req) {
     const data = await response.json();
     const aiText = data.candidates[0].content.parts[0].text;
 
+    // --- Vercel Serverless Redis 에 데이터 저장 ---
+    // (Vercel Marketplace 연동 시 자동으로 주어지는 환경 변수 혹은 사용자가 지정한 REDIS_URL 사용)
+    const redisUrl = process.env.KV_REST_API_URL || process.env.REDIS_URL || process.env['redis.url'];
+    const redisToken = process.env.KV_REST_API_TOKEN || process.env.REDIS_TOKEN || process.env['redis.token'];
+
+    if (redisUrl && redisToken) {
+      try {
+        // 1. 고유 ID 생성: 현재 시간을 'diary_YYYYMMDDHHmmssSSS' 포맷으로 만듦
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        const ms = String(now.getMilliseconds()).padStart(3, '0'); // 밀리초 3자리
+        const timeKey = `${year}${month}${day}${hours}${minutes}${seconds}${ms}`;
+        const key = `diary_${timeKey}`;
+
+        // 2. 저장할 데이터 객체 (원본 일기와 AI 답변 묶음)
+        const payload = {
+          userText: text,
+          aiResponse: aiText,
+          timestamp: now.toISOString()
+        };
+
+        // 3. Redis(Upstash) REST API를 통해 데이터 저장 (Fetch 활용)
+        const redisReq = await fetch(`${redisUrl}/set/${key}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${redisToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload) // Upstash의 REST API는 값을 문자열화하여 전달
+        });
+
+        if (!redisReq.ok) {
+          console.error("Redis 저장 중 서버 오류 발생:", await redisReq.text());
+        } else {
+          console.log(`✅ Redis에 저장 완료! 키: ${key}`);
+        }
+      } catch (redisError) {
+        console.error("Redis 저장 네트워크/코드 오류:", redisError);
+      }
+    } else {
+      console.warn("⚠️ Redis 환경 변수(KV_REST_API_URL 혹은 redis.url 등)가 설정되지 않아 저장을 건너뜁니다.");
+    }
+    // ----------------------------------------------
+
     // 5. 생성된 AI 답변을 Web 표준 Response 객체로 클라이언트에 반환
     return new Response(
       JSON.stringify({ result: aiText }),
