@@ -56,8 +56,8 @@ export default async function handler(req) {
 
     // --- Vercel Serverless Redis 에 데이터 저장 ---
     // (Vercel Marketplace 연동 혹은 직접 추가한 환경 변수 사용)
-    const redisUrl = process.env.UPSTASH_URL || process.env.KV_REST_API_URL || process.env.REDIS_URL || process.env['redis.url'];
-    const redisToken = process.env.UPSTASH_TOKEN || process.env.KV_REST_API_TOKEN || process.env.REDIS_TOKEN || process.env['redis.token'];
+    const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_URL || process.env.KV_REST_API_URL || process.env.REDIS_URL || process.env['redis.url'];
+    const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_TOKEN || process.env.KV_REST_API_TOKEN || process.env.REDIS_TOKEN || process.env['redis.token'];
 
     if (redisUrl && redisToken) {
       try {
