@@ -11,18 +11,20 @@ export default async function handler(req) {
   const redisToken = process.env.KV_REST_API_TOKEN || process.env.REDIS_TOKEN || process.env['redis.token'];
 
   if (!redisUrl || !redisToken) {
-    // Redis 환경변수가 없으면 빈 배열 반환
-    return new Response(JSON.stringify({ result: [] }), { 
+    // Redis 환경변수가 없으면 빈 배열과 상태 메시지 반환
+    return new Response(JSON.stringify({ result: [], debug_status: "ENV_MISSING" }), { 
       status: 200, 
       headers: { 'Content-Type': 'application/json' } 
     });
   }
 
   try {
+    const cleanUrl = redisUrl.endsWith('/') ? redisUrl.slice(0, -1) : redisUrl;
+
     // 1. SCAN 명령: 'diary_*' 패턴을 가진 키를 찾음 (최대 100개)
-    const scanReq = await fetch(redisUrl, {
+    const scanReq = await fetch(cleanUrl, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${redisToken}` },
+      headers: { Authorization: `Bearer ${redisToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(["SCAN", "0", "MATCH", "diary_*", "COUNT", 100])
     });
     
@@ -34,7 +36,7 @@ export default async function handler(req) {
     const keys = scanData.result[1];
 
     if (!keys || keys.length === 0) {
-      return new Response(JSON.stringify({ result: [] }), { 
+      return new Response(JSON.stringify({ result: [], debug_status: "NO_KEYS_FOUND" }), { 
         status: 200, 
         headers: { 'Content-Type': 'application/json' } 
       });
@@ -44,9 +46,9 @@ export default async function handler(req) {
     keys.sort((a, b) => b.localeCompare(a));
 
     // 2. MGET 명령: 찾은 키들의 모든 데이터를 한 번에 가져옴
-    const mgetReq = await fetch(redisUrl, {
+    const mgetReq = await fetch(cleanUrl, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${redisToken}` },
+      headers: { Authorization: `Bearer ${redisToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(["MGET", ...keys])
     });
 

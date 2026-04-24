@@ -80,14 +80,15 @@ export default async function handler(req) {
           timestamp: now.toISOString()
         };
 
-        // 3. Redis(Upstash) REST API를 통해 데이터 저장 (Fetch 활용)
-        const redisReq = await fetch(`${redisUrl}/set/${key}`, {
+        // 3. Redis(Upstash) REST API: 무조건 root url에 Command 배열 형태로 통일
+        const cleanUrl = redisUrl.endsWith('/') ? redisUrl.slice(0, -1) : redisUrl;
+        const redisReq = await fetch(cleanUrl, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${redisToken}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(payload) // Upstash의 REST API는 값을 문자열화하여 전달
+          body: JSON.stringify(["SET", key, JSON.stringify(payload)])
         });
 
         if (!redisReq.ok) {
