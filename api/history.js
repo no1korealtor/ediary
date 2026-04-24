@@ -7,8 +7,8 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ message: 'GET 요청만 허용됩니다.' }), { status: 405 });
   }
 
-  const redisUrl = process.env.KV_REST_API_URL || process.env.REDIS_URL || process.env['redis.url'];
-  const redisToken = process.env.KV_REST_API_TOKEN || process.env.REDIS_TOKEN || process.env['redis.token'];
+  const redisUrl = process.env.UPSTASH_URL || process.env.KV_REST_API_URL || process.env.REDIS_URL || process.env['redis.url'];
+  const redisToken = process.env.UPSTASH_TOKEN || process.env.KV_REST_API_TOKEN || process.env.REDIS_TOKEN || process.env['redis.token'];
 
   if (!redisUrl || !redisToken) {
     // Redis 환경변수가 없으면 빈 배열과 상태 메시지 반환
