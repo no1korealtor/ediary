@@ -121,6 +121,58 @@
       font-size: 15px;
       border: 1px solid #e2e8f0;
     }
+    .history-section {
+      margin-top: 40px;
+      border-top: 2px dashed #e2e8f0;
+      padding-top: 20px;
+    }
+    .history-section h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: var(--text-main);
+      text-align: center;
+    }
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .history-card {
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      text-align: left;
+    }
+    .history-date {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 5px;
+    }
+    .history-user {
+      font-size: 14px;
+      color: var(--text-main);
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .history-ai {
+      font-size: 14px;
+      color: var(--primary-color);
+      background-color: #eef2ff;
+      padding: 12px;
+      border-radius: 12px;
+      line-height: 1.5;
+    }
+    .empty-history {
+      text-align: center;
+      color: #94a3b8;
+      font-size: 14px;
+      padding: 20px 0;
+    }
   </style>
 </head>
 <body>
@@ -137,6 +189,13 @@
       <h2>AI의 답변</h2>
       <div class="ai-response-box" id="aiResponse">
         여기에 AI의 답변이 표시됩니다.
+      </div>
+    </div>
+
+    <div class="history-section">
+      <h2>나의 일기 히스토리 📚</h2>
+      <div class="history-list" id="historyList">
+        <div class="empty-history">불러오는 중...</div>
       </div>
     </div>
   </div>
@@ -158,7 +217,53 @@
       if (savedResponse) {
         aiResponse.innerHTML = savedResponse;
       }
+      
+      // 페이지 로드 시 히스토리 API 호출
+      fetchHistory();
     });
+
+    // 히스토리 데이터를 가져와 화면에 렌더링하는 함수
+    async function fetchHistory() {
+      const historyList = document.getElementById('historyList');
+      try {
+        const res = await fetch('/api/history');
+        if (!res.ok) throw new Error('히스토리 로드 실패');
+        
+        const data = await res.json();
+        const items = data.result;
+
+        if (!items || items.length === 0) {
+          historyList.innerHTML = '<div class="empty-history">아직 저장된 일기가 없습니다.</div>';
+          return;
+        }
+
+        historyList.innerHTML = ''; // 초기화
+        
+        items.forEach(item => {
+          // 날짜 포맷팅
+          const dateObj = new Date(item.timestamp);
+          const dateStr = dateObj.toLocaleString('ko-KR', { 
+            year: 'numeric', month: 'long', day: 'numeric', 
+            hour: '2-digit', minute: '2-digit' 
+          });
+
+          const formattedAi = item.aiResponse ? item.aiResponse.replace(/\n/g, '<br>') : '답변 없음';
+
+          const card = document.createElement('div');
+          card.className = 'history-card';
+          card.innerHTML = `
+            <div class="history-date">📅 ${dateStr}</div>
+            <div class="history-user">${item.userText}</div>
+            <div class="history-ai"><strong>AI:</strong><br>${formattedAi}</div>
+          `;
+          historyList.appendChild(card);
+        });
+
+      } catch (e) {
+        console.error(e);
+        historyList.innerHTML = '<div class="empty-history">히스토리를 불러올 수 없습니다.</div>';
+      }
+    }
 
     // 사용자가 직접 타이핑할 때 일기 내용 저장
     diaryInput.addEventListener('input', () => {
@@ -282,6 +387,9 @@
       } finally {
         analyzeBtn.disabled = false;
         analyzeBtn.innerHTML = '✨ 분석 요청하기';
+        
+        // 분석 완료 후, 히스토리 목록 새로고침 (새로 저장된 내용 반영 목적)
+        fetchHistory();
       }
     });
   </script>
