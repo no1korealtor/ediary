@@ -320,7 +320,7 @@
 
   <script>
     // Supabase 클라이언트 초기화 설정
-    let supabase;
+    let supabaseClient;
 
     // 페이지 로드 시 환경변수 설정용 API 호출하여 Supabase 초기화
     async function initSupabase() {
@@ -336,7 +336,7 @@
         if (contentType && contentType.indexOf("application/json") !== -1) {
           const config = await res.json();
           if (config.url && config.key) {
-            supabase = window.supabase.createClient(config.url, config.key);
+            supabaseClient = window.supabase.createClient(config.url, config.key);
           }
         } else {
             console.warn('API 응답이 JSON 형식이 아닙니다 (URL 에러 가능성)');
@@ -388,7 +388,7 @@
         return;
       }
       
-      if (!supabase) {
+      if (!supabaseClient) {
         alert('Supabase 연결 설정이 완료되지 않았습니다.');
         return;
       }
@@ -399,7 +399,7 @@
       signupBtn.disabled = true;
 
       try {
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await supabaseClient.auth.signUp({
           email: email,
           password: password
         });
