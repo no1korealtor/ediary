@@ -584,7 +584,14 @@
         });
 
         if (!response.ok) {
-          throw new Error(`서버 오류: ${response.status}`);
+          let errDetail = '';
+          try {
+            const errJson = await response.json();
+            errDetail = errJson.message || JSON.stringify(errJson);
+          } catch(e) {
+            errDetail = await response.text();
+          }
+          throw new Error(`서버 오류 (${response.status}): ${errDetail}`);
         }
 
         const data = await response.json();
