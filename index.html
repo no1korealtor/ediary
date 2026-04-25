@@ -597,6 +597,11 @@
         const data = await response.json();
         const aiText = data.result;
         
+        // 데이터베이스 저장 실패 경고가 있으면 알림
+        if (data.warning) {
+           alert("AI 응답은 성공적이지만 DB 저장에 문제가 있습니다: " + data.warning);
+        }
+        
         // 결과 표시 (줄바꿈 처리)
         const formattedResponse = aiText.replace(/\n/g, '<br>');
         aiResponse.innerHTML = formattedResponse;

@@ -75,14 +75,26 @@ export default async function handler(req) {
 
         if (dbError) {
           console.error("Supabase 저장 중 오류 발생:", dbError);
+          return new Response(
+            JSON.stringify({ result: aiText, warning: `디비 저장 실패: ${dbError.message}` }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
         } else {
           console.log("✅ Supabase에 저장 완료!");
         }
       } catch (dbError) {
         console.error("Supabase 저장 네트워크/코드 오류:", dbError);
+        return new Response(
+            JSON.stringify({ result: aiText, warning: `디비 저장 코드 오류: ${dbError.message}` }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
       }
     } else {
       console.warn("⚠️ Supabase 환경 변수가 설정되지 않아 저장을 건너뜁니다.");
+      return new Response(
+        JSON.stringify({ result: aiText, warning: "Supabase 환경설정이 누락되었습니다." }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
     }
     // ----------------------------------------------
 
