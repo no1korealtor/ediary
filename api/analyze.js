@@ -1,3 +1,5 @@
+import { createClient } from '@supabase/supabase-js';
+
 // Vercel Edge Runtime을 사용하여 콜드 스타트(Cold Start) 지연을 제거하고 매우 빠르게 동작하도록 최적화
 export const config = {
   runtime: 'edge', 
@@ -54,53 +56,33 @@ export default async function handler(req) {
     const data = await response.json();
     const aiText = data.candidates[0].content.parts[0].text;
 
-    // --- Vercel Serverless Redis 에 데이터 저장 ---
-    // (Vercel Marketplace 연동 혹은 직접 추가한 환경 변수 사용)
-    const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_URL || process.env.KV_REST_API_URL || process.env.REDIS_URL || process.env['redis.url'];
-    const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_TOKEN || process.env.KV_REST_API_TOKEN || process.env.REDIS_TOKEN || process.env['redis.token'];
+    // --- Vercel Serverless Supabase 에 데이터 저장 ---
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (redisUrl && redisToken) {
+    if (supabaseUrl && supabaseKey) {
       try {
-        // 1. 고유 ID 생성: 현재 시간을 'diary_YYYYMMDDHHmmssSSS' 포맷으로 만듦
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const seconds = String(now.getSeconds()).padStart(2, '0');
-        const ms = String(now.getMilliseconds()).padStart(3, '0'); // 밀리초 3자리
-        const timeKey = `${year}${month}${day}${hours}${minutes}${seconds}${ms}`;
-        const key = `diary_${timeKey}`;
+        const supabase = createClient(supabaseUrl, supabaseKey);
 
-        // 2. 저장할 데이터 객체 (원본 일기와 AI 답변 묶음)
         const payload = {
-          userText: text,
-          aiResponse: aiText,
-          timestamp: now.toISOString()
+          user_text: text,
+          ai_response: aiText
         };
 
-        // 3. Redis(Upstash) REST API: 무조건 root url에 Command 배열 형태로 통일
-        const cleanUrl = redisUrl.endsWith('/') ? redisUrl.slice(0, -1) : redisUrl;
-        const redisReq = await fetch(cleanUrl, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${redisToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(["SET", key, JSON.stringify(payload)])
-        });
+        const { error: dbError } = await supabase
+          .from('diaries')
+          .insert([payload]);
 
-        if (!redisReq.ok) {
-          console.error("Redis 저장 중 서버 오류 발생:", await redisReq.text());
+        if (dbError) {
+          console.error("Supabase 저장 중 오류 발생:", dbError);
         } else {
-          console.log(`✅ Redis에 저장 완료! 키: ${key}`);
+          console.log("✅ Supabase에 저장 완료!");
         }
-      } catch (redisError) {
-        console.error("Redis 저장 네트워크/코드 오류:", redisError);
+      } catch (dbError) {
+        console.error("Supabase 저장 네트워크/코드 오류:", dbError);
       }
     } else {
-      console.warn("⚠️ Redis 환경 변수(KV_REST_API_URL 혹은 redis.url 등)가 설정되지 않아 저장을 건너뜁니다.");
+      console.warn("⚠️ Supabase 환경 변수가 설정되지 않아 저장을 건너뜁니다.");
     }
     // ----------------------------------------------
 
