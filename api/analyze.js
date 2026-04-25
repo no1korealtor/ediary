@@ -57,8 +57,8 @@ export default async function handler(req) {
     const aiText = data.candidates[0].content.parts[0].text;
 
     // --- Vercel Serverless Supabase 에 데이터 저장 ---
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.ediary_SUPABASE_URL || process.env.NEXT_PUBLIC_ediary_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.ediary_SUPABASE_SERVICE_ROLE_KEY || process.env.ediary_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_ediary_SUPABASE_ANON_KEY;
 
     if (supabaseUrl && supabaseKey) {
       try {
