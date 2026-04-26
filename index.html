@@ -365,12 +365,46 @@
       fetchHistory(); // 화면이 전환되면 히스토리를 불러옴
     }
 
-    loginBtn.addEventListener('click', () => {
-      if (emailInput.value && passwordInput.value) {
-        // 임시로 그냥 넘어가도록 (나중에 로그인 로직 추가)
-        performLogin();
+    loginBtn.addEventListener('click', async () => {
+      const email = emailInput.value.trim();
+      const password = passwordInput.value.trim();
+
+      if (email && password) {
+        if (!supabaseClient) {
+          alert('Supabase 연결 설정이 진행중입니다. 잠시 후 다시 시도해주세요.');
+          return;
+        }
+
+        const originalText = loginBtn.innerHTML;
+        loginBtn.innerHTML = '로그인 중...';
+        loginBtn.disabled = true;
+
+        try {
+          const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email: email,
+            password: password,
+          });
+
+          if (error) throw error;
+          
+          alert('로그인 성공!');
+          performLogin();
+
+        } catch (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            alert('이메일 또는 비밀번호가 틀렸습니다.');
+          } else if (error.message.includes('Email not confirmed')) {
+            alert('이메일 인증이 완료되지 않았습니다. 가입하신 이메일의 메일함을 확인해주세요.');
+          } else {
+            alert('로그인 실패: ' + error.message);
+          }
+        } finally {
+          loginBtn.innerHTML = originalText;
+          loginBtn.disabled = false;
+        }
+
       } else {
-        alert('이메일과 비밀번호를 입력해주세요.');
+        alert('이메일과 비밀번호를 모두 입력해주세요.');
       }
     });
 
