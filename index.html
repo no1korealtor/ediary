@@ -448,9 +448,15 @@
       }
     });
 
-    kakaoLoginBtn.addEventListener('click', () => {
-      // 카카오 로그인 지원 시 이 곳 수정 필요 (현재는 모의 동작)
-      alert('카카오 로그인은 현재 준비중입니다.');
+    kakaoLoginBtn.addEventListener('click', async () => {
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'kakao',
+        });
+        if (error) throw error;
+      } catch (error) {
+        alert('카카오 로그인 페이지 이동 실패: ' + error.message);
+      }
     });
 
     // 로그아웃 버튼 이벤트
