@@ -18,6 +18,7 @@ export default async function handler(req) {
     // 2. 클라이언트로부터 전달받은 데이터(일기 내용) 추출
     const body = await req.json();
     const text = body.text;
+    const userId = body.user_id;
 
     if (!text) {
       return new Response(
@@ -68,6 +69,9 @@ export default async function handler(req) {
           user_text: text,
           ai_response: aiText
         };
+        if (userId) {
+          payload.user_id = userId;
+        }
 
         const { error: dbError } = await supabase
           .from('diaries')

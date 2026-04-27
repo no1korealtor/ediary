@@ -23,10 +23,17 @@ export default async function handler(req) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // URL에서 user_id 파라미터 가져오기
+    const url = new URL(req.url);
+    const userId = url.searchParams.get('user_id');
+
+    let query = supabase.from('diaries').select('*');
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+
     // diaries 테이블에서 최신 데이터 100개를 가져옴
-    const { data, error } = await supabase
-      .from('diaries')
-      .select('*')
+    const { data, error } = await query
       .order('created_at', { ascending: false })
       .limit(100);
       

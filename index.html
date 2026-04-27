@@ -533,7 +533,15 @@
     async function fetchHistory() {
       const historyList = document.getElementById('historyList');
       try {
-        const res = await fetch('/api/history');
+        let url = '/api/history';
+        if (supabaseClient) {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          if (session && session.user) {
+            url += `?user_id=${session.user.id}`;
+          }
+        }
+        
+        const res = await fetch(url);
         if (!res.ok) throw new Error('히스토리 로드 실패');
         
         const data = await res.json();
@@ -667,11 +675,19 @@
       aiResponse.innerHTML = 'AI가 일기를 읽고 분석하고 있습니다. 잠시만 기다려주세요...';
 
       try {
+        let userId = null;
+        if (supabaseClient) {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          if (session && session.user) {
+            userId = session.user.id;
+          }
+        }
+
         // Vercel Serverless Function 호출
         const response = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: text })
+          body: JSON.stringify({ text: text, user_id: userId })
         });
 
         if (!response.ok) {
