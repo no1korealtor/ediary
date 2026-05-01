@@ -871,13 +871,42 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    chatSendBtn.addEventListener('click', () => {
+    chatSendBtn.addEventListener('click', async () => {
       const text = chatInput.value.trim();
       if (!text) return;
 
       // 사용자 메시지 추가
       appendChatMessage(text, 'user');
-      chatInput.value = '';
+      chatInput.value = ''; // 입력창 비우기
+
+      // Supabase 테이블에 데이터 추가
+      if (supabaseClient) {
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          
+          if (session && session.user) {
+            const { error } = await supabaseClient
+              .from('chats') // Supabase의 테이블 이름이 'chats'라고 가정합니다.
+              .insert([
+                { 
+                  message: text, 
+                  user_email: session.user.email,
+                  user_id: session.user.id
+                }
+              ]);
+            
+            if (error) {
+              console.error('메시지 저장 에러:', error);
+            } else {
+              console.log('메시지가 성공적으로 저장되었습니다.');
+            }
+          } else {
+            console.warn('로그인되어 있지 않아 데이터베이스에 저장할 수 없습니다.');
+          }
+        } catch (error) {
+          console.error('채팅 저장 중 오류 발생:', error);
+        }
+      }
 
       // 임시 AI 응답
       setTimeout(() => {
