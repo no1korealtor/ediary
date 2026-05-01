@@ -897,6 +897,7 @@
             
             if (error) {
               console.error('메시지 저장 에러:', error);
+              alert('메시지 저장 실패: ' + error.message);
             } else {
               console.log('메시지가 성공적으로 저장되었습니다.');
             }
