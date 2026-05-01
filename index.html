@@ -420,7 +420,7 @@
     <div class="chat-section">
       <h2>실시간 채팅 💬</h2>
       <div class="chat-box" id="chatBox">
-        <div class="chat-message ai">안녕하세요! 일기에 대해 더 이야기하고 싶은 것이 있나요?</div>
+        <!-- 메시지가 여기에 동적으로 추가됩니다 -->
       </div>
       <div class="chat-input-area">
         <input type="text" id="chatInput" placeholder="메시지를 입력하세요...">
@@ -472,6 +472,8 @@
     
     // 즉시 인스턴스 초기화 실행
     initSupabase();
+
+    let chatSubscription = null; // 실시간 구독 객체를 저장할 변수
 
     // 혹시라도 남아있는 구버전 공용 임시 저장소(글로벌 localStorage) 찌꺼기 완전 삭제
     localStorage.removeItem('diaryText');
@@ -526,6 +528,7 @@
       }
 
       fetchHistory(); // 화면이 전환되면 히스토리를 불러옴
+      initChat(); // 실시간 채팅 데이터 초기화 및 구독
     }
 
     loginBtn.addEventListener('click', async () => {
@@ -584,6 +587,11 @@
 
     // 로그아웃 버튼 이벤트
     document.getElementById('logoutBtn').addEventListener('click', async () => {
+      if (chatSubscription && supabaseClient) {
+        supabaseClient.removeChannel(chatSubscription);
+        chatSubscription = null;
+      }
+
       if (supabaseClient) {
         await supabaseClient.auth.signOut();
       }
@@ -863,30 +871,83 @@
     const chatInput = document.getElementById('chatInput');
     const chatSendBtn = document.getElementById('chatSendBtn');
 
-    function appendChatMessage(text, sender) {
+    function appendChatMessage(text, sender, email) {
+      const wrapper = document.createElement('div');
+      wrapper.style.display = 'flex';
+      wrapper.style.flexDirection = 'column';
+      wrapper.style.alignItems = sender === 'user' ? 'flex-end' : 'flex-start';
+      wrapper.style.marginBottom = '10px';
+
+      const emailDiv = document.createElement('div');
+      emailDiv.style.fontSize = '12px';
+      emailDiv.style.color = '#94a3b8';
+      emailDiv.style.marginBottom = '4px';
+      emailDiv.innerText = email || 'Unknown';
+
       const msgDiv = document.createElement('div');
       msgDiv.className = `chat-message ${sender}`;
       msgDiv.innerText = text;
-      chatBox.appendChild(msgDiv);
+
+      wrapper.appendChild(emailDiv);
+      wrapper.appendChild(msgDiv);
+      
+      chatBox.appendChild(wrapper);
       chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    async function initChat() {
+      chatBox.innerHTML = ''; // 초기화
+      if (!supabaseClient) return;
+
+      try {
+        // 1. 기존 메시지 모두 불러오기 (오래된 순)
+        const { data, error } = await supabaseClient
+          .from('messages')
+          .select('*')
+          .order('created_at', { ascending: true });
+          
+        if (error) throw error;
+        
+        if (data) {
+          data.forEach(msg => {
+            const senderType = msg.user_email === currentUserEmail ? 'user' : 'ai';
+            appendChatMessage(msg.content, senderType, msg.user_email);
+          });
+        }
+      } catch (e) {
+        console.error('기존 메시지 불러오기 실패:', e);
+      }
+
+      // 2. 실시간 구독 설정
+      if (chatSubscription) {
+        supabaseClient.removeChannel(chatSubscription);
+      }
+
+      chatSubscription = supabaseClient
+        .channel('public:messages')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+          const newMsg = payload.new;
+          const senderType = newMsg.user_email === currentUserEmail ? 'user' : 'ai';
+          appendChatMessage(newMsg.content, senderType, newMsg.user_email);
+        })
+        .subscribe();
     }
 
     chatSendBtn.addEventListener('click', async () => {
       const text = chatInput.value.trim();
       if (!text) return;
 
-      // 사용자 메시지 추가
-      appendChatMessage(text, 'user');
       chatInput.value = ''; // 입력창 비우기
 
       // Supabase 테이블에 데이터 추가
+      // (성공적으로 추가되면 실시간 구독을 통해 화면에 나타납니다)
       if (supabaseClient) {
         try {
           const { data: { session } } = await supabaseClient.auth.getSession();
           
           if (session && session.user) {
             const { error } = await supabaseClient
-              .from('messages') // 사용자가 생성한 'messages' 테이블을 가리키도록 수정
+              .from('messages')
               .insert([
                 { 
                   content: text, 
@@ -898,8 +959,6 @@
             if (error) {
               console.error('메시지 저장 에러:', error);
               alert('메시지 저장 실패: ' + error.message);
-            } else {
-              console.log('메시지가 성공적으로 저장되었습니다.');
             }
           } else {
             console.warn('로그인되어 있지 않아 데이터베이스에 저장할 수 없습니다.');
@@ -908,11 +967,6 @@
           console.error('채팅 저장 중 오류 발생:', error);
         }
       }
-
-      // 임시 AI 응답
-      setTimeout(() => {
-        appendChatMessage("그렇군요! 조금 더 자세히 이야기해 주실 수 있나요?", 'ai');
-      }, 1000);
     });
 
     chatInput.addEventListener('keypress', (e) => {
