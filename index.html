@@ -889,7 +889,7 @@
               .from('messages') // 사용자가 생성한 'messages' 테이블을 가리키도록 수정
               .insert([
                 { 
-                  message: text, 
+                  content: text, 
                   user_email: session.user.email,
                   user_id: session.user.id
                 }
