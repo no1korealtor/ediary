@@ -886,7 +886,7 @@
           
           if (session && session.user) {
             const { error } = await supabaseClient
-              .from('chats') // Supabase의 테이블 이름이 'chats'라고 가정합니다.
+              .from('messages') // 사용자가 생성한 'messages' 테이블을 가리키도록 수정
               .insert([
                 { 
                   message: text, 
