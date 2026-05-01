@@ -459,7 +459,7 @@
             // 초기 로그인 상태 확인
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session && session.user) {
-              performLogin(session.user.email);
+              performLogin(session.user);
             }
           }
         } else {
@@ -498,7 +498,28 @@
     const passwordInput = document.getElementById('passwordInput');
 
     // 로그인 성공 시 메인 화면으로 이동하는 함수
-    function performLogin(email) {
+    async function performLogin(user) {
+      if (!supabaseClient) return;
+
+      // 관리자 승인 여부 체크 (profiles 테이블 조회)
+      try {
+        const { data: profile, error } = await supabaseClient
+          .from('profiles')
+          .select('is_approved')
+          .eq('id', user.id)
+          .single();
+
+        if (error || !profile || profile.is_approved !== true) {
+          alert('가입 승인 대기중입니다. 관리자의 승인 후 이용 가능합니다.');
+          await supabaseClient.auth.signOut(); // 강제 로그아웃 처리
+          return; // 메인 화면으로 이동하지 않고 중단
+        }
+      } catch (err) {
+        console.error('승인 상태 확인 중 에러:', err);
+        return;
+      }
+
+      const email = user.email;
       currentUserEmail = email; // 글로벌 상태 저장
       
       loginContainer.style.display = 'none';
@@ -553,8 +574,8 @@
 
           if (error) throw error;
           
-          alert('로그인 성공!');
-          performLogin(data.user.email);
+          // alert('로그인 성공!'); (승인 체크 후 넘어가도록 팝업 생략)
+          performLogin(data.user);
 
         } catch (error) {
           if (error.message.includes('Invalid login credentials')) {
