@@ -27,10 +27,15 @@ export default async function handler(req) {
     const url = new URL(req.url);
     const userId = url.searchParams.get('user_id');
 
-    let query = supabase.from('diaries').select('*');
-    if (userId) {
-      query = query.eq('user_id', userId);
+    // userId가 없으면 타인의 일기가 모두 보일 수 있으므로 빈 배열을 반환하도록 예외 처리
+    if (!userId) {
+      return new Response(JSON.stringify({ result: [], message: '사용자 인증이 필요합니다.' }), { 
+        status: 200, 
+        headers: { 'Content-Type': 'application/json' } 
+      });
     }
+
+    let query = supabase.from('diaries').select('*').eq('user_id', userId);
 
     // diaries 테이블에서 최신 데이터 100개를 가져옴
     const { data, error } = await query
