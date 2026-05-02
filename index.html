@@ -519,6 +519,34 @@
         return;
       }
 
+      // 사용자의 role 확인 및 명시적 일기 페이지 접근인지 확인
+      const urlParams = new URLSearchParams(window.location.search);
+      const isExplicitEdiary = urlParams.get('service') === 'ediary';
+
+      if (!isExplicitEdiary) {
+          try {
+            const { data: userData, error: userError } = await supabaseClient
+                .from('users')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+
+            if (userError) {
+                alert('Role 확인 에러 (DB 문제): ' + userError.message);
+                console.error('Role 에러 상세:', userError);
+            } else if (userData && (userData.role === 'admin' || userData.role === 'consultant')) {
+                localStorage.setItem('userRole', userData.role);
+                window.location.href = '../consult_diary/service-select.html';
+                return;
+            } else {
+                console.log('Role이 admin/consultant가 아니거나 데이터가 없습니다.', userData);
+            }
+          } catch (err) {
+            alert('Role 확인 중 예기치 않은 에러: ' + err.message);
+            console.error('Role 확인 중 에러:', err);
+          }
+      }
+
       const email = user.email;
       currentUserEmail = email; // 글로벌 상태 저장
       
