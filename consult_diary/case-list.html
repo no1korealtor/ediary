@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Case List</title>
+    <link rel="stylesheet" href="app.css">
+    <style>
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        .text-sm { font-size: 0.875rem; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="top-bar">
+            <h2>상담 케이스 목록</h2>
+            <div>
+                <a href="service-select.html" class="btn btn-secondary" style="padding: 0.5rem 1rem;">뒤로</a>
+                <a href="daily-report.html" class="btn btn-secondary" style="padding: 0.5rem 1rem;">일일 보고서</a>
+            </div>
+        </div>
+
+        <div id="caseList" class="flex-col">
+            <div style="text-align: center; color: var(--text-muted);">로딩 중...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { supabase } from './supabase-client.js';
+
+        async function loadCases() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Fetch cases joined with customers
+            // And we need last log content. Since Supabase PostgREST might not easily do a "latest log" join without a view or rpc, 
+            // we will fetch cases with customers and then fetch logs, or fetch them all together if possible.
+            // Assuming there's a view or we do it client side. Let's do it client side for simplicity.
+            const { data: cases, error } = await supabase
+                .from('cases')
+                .select(`
+                    id,
+                    case_type,
+                    status,
+                    customers (
+                        name,
+                        phone
+                    )
+                `)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                document.getElementById('caseList').innerHTML = `<div style="color:red">데이터를 불러오는 중 오류가 발생했습니다.</div>`;
+                return;
+            }
+
+            const caseList = document.getElementById('caseList');
+            caseList.innerHTML = '';
+
+            for (const c of cases) {
+                // Get last log
+                const { data: logs } = await supabase
+                    .from('logs')
+                    .select('content')
+                    .eq('case_id', c.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+                
+                const lastLog = logs && logs.length > 0 ? logs[0].content : '로그 없음';
+
+                const card = document.createElement('div');
+                card.className = 'case-card';
+                card.onclick = () => window.location.href = `case-detail.html?id=${c.id}`;
+                card.innerHTML = `
+                    <div class="case-header">
+                        <strong style="font-size: 1.1rem;">${c.customers?.name || '알 수 없음'} (${c.customers?.phone || '번호 없음'})</strong>
+                        <span class="badge" style="background-color: var(--primary);">${c.status || '진행중'}</span>
+                    </div>
+                    <div style="margin-bottom: 0.5rem;">유형: ${c.case_type || '-'}</div>
+                    <div class="text-sm">최근 내용: ${lastLog}</div>
+                `;
+                caseList.appendChild(card);
+            }
+            
+            if (cases.length === 0) {
+                caseList.innerHTML = `<div style="text-align: center; color: var(--text-muted);">등록된 케이스가 없습니다.</div>`;
+            }
+        }
+
+        loadCases();
+    </script>
+</body>
+</html>

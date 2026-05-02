@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Report</title>
+    <link rel="stylesheet" href="app.css">
+    <style>
+        .print-btn {
+            background-color: var(--primary);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            background-color: rgba(255,255,255,0.05);
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+        @media print {
+            body { background: white; color: black; }
+            .no-print { display: none !important; }
+            .glass-panel { background: white; box-shadow: none; border: none; padding: 0; }
+            th, td { border-bottom: 1px solid #ccc; color: black; }
+            th { background-color: #f3f4f6; color: black; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h2>일일 보고서</h2>
+            <div>
+                <a href="case-list.html" class="btn btn-secondary" style="padding: 0.5rem 1rem;">목록으로</a>
+                <button onclick="window.print()" class="print-btn">보고서 인쇄</button>
+            </div>
+        </div>
+
+        <div class="glass-panel">
+            <div class="no-print" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                <input type="date" id="dateFilter" style="width: auto;">
+                <button id="searchBtn" class="btn" style="width: auto;">조회</button>
+            </div>
+
+            <h3 id="reportTitle" style="margin-bottom: 1rem;">오늘의 보고서</h3>
+
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 15%">시간</th>
+                            <th style="width: 20%">고객명</th>
+                            <th style="width: 20%">진행 단계</th>
+                            <th style="width: 45%">내용</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportBody">
+                        <tr><td colspan="4" style="text-align: center;">데이터를 불러오는 중...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { supabase } from './supabase-client.js';
+
+        let currentUser = null;
+
+        async function init() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            const { data: userData } = await supabase
+                .from('users')
+                .select('name')
+                .eq('id', session.user.id)
+                .single();
+            
+            currentUser = userData ? userData.name : session.user.email;
+
+            // Set today as default
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('dateFilter').value = today;
+
+            document.getElementById('searchBtn').addEventListener('click', loadReport);
+            
+            await loadReport();
+        }
+
+        async function loadReport() {
+            const dateStr = document.getElementById('dateFilter').value;
+            if (!dateStr) return;
+
+            document.getElementById('reportTitle').textContent = `${dateStr} 상담 보고서 (${currentUser})`;
+
+            const startOfDay = new Date(dateStr);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(dateStr);
+            endOfDay.setHours(23, 59, 59, 999);
+
+            const startISO = startOfDay.toISOString();
+            const endISO = endOfDay.toISOString();
+
+            // Fetch logs for current user on the selected date
+            // We need to join with cases and then customers to get customer name and stage.
+            // Supabase allows chaining joins if foreign keys are set up.
+            // logs -> cases -> customers & cases -> stages
+            const { data: logs, error } = await supabase
+                .from('logs')
+                .select(`
+                    created_at,
+                    content,
+                    cases (
+                        customers ( name ),
+                        stages ( name )
+                    )
+                `)
+                .eq('created_by', currentUser)
+                .gte('created_at', startISO)
+                .lte('created_at', endISO)
+                .order('created_at', { ascending: true });
+
+            const tbody = document.getElementById('reportBody');
+            tbody.innerHTML = '';
+
+            if (error) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">오류가 발생했습니다.</td></tr>`;
+                return;
+            }
+
+            if (!logs || logs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center;">해당 날짜에 작성된 로그가 없습니다.</td></tr>`;
+                return;
+            }
+
+            logs.forEach(log => {
+                const timeStr = new Date(log.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                const customerName = log.cases?.customers?.name || '-';
+                const stageName = log.cases?.stages?.name || '-';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${timeStr}</td>
+                    <td>${customerName}</td>
+                    <td><span class="badge">${stageName}</span></td>
+                    <td>${log.content}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>

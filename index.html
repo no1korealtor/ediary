@@ -536,7 +536,7 @@
                 console.error('Role 에러 상세:', userError);
             } else if (userData && (userData.role === 'admin' || userData.role === 'consultant')) {
                 localStorage.setItem('userRole', userData.role);
-                window.location.href = '../consult_diary/service-select.html';
+                window.location.href = './consult_diary/service-select.html';
                 return;
             } else {
                 console.log('Role이 admin/consultant가 아니거나 데이터가 없습니다.', userData);

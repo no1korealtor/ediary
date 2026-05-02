@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Case Detail</title>
+    <link rel="stylesheet" href="app.css">
+</head>
+<body>
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h2>상담 케이스 상세</h2>
+            <a href="case-list.html" class="btn btn-secondary" style="padding: 0.5rem 1rem;">목록으로</a>
+        </div>
+
+        <div class="glass-panel" style="margin-bottom: 2rem;">
+            <h3>진행 단계</h3>
+            <select id="stageSelect">
+                <option value="">단계를 선택하세요</option>
+            </select>
+
+            <div id="guideSection" style="display: none; margin-top: 1.5rem; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 0.5rem;">
+                <h4 style="color: #60a5fa; margin-bottom: 0.5rem;">관련 법령</h4>
+                <p id="lawText" style="font-size: 0.9rem; margin-bottom: 1rem; white-space: pre-wrap;"></p>
+                
+                <h4 style="color: #60a5fa; margin-bottom: 0.5rem;">가이드</h4>
+                <p id="guideText" style="font-size: 0.9rem; margin-bottom: 1rem; white-space: pre-wrap;"></p>
+                
+                <h4 style="color: #60a5fa; margin-bottom: 0.5rem;">체크리스트</h4>
+                <div id="checklist" style="font-size: 0.9rem;"></div>
+            </div>
+        </div>
+
+        <div class="glass-panel">
+            <h3>상담 로그</h3>
+            
+            <form id="logForm" style="display: flex; gap: 0.5rem; margin-bottom: 2rem;">
+                <input type="text" id="logInput" placeholder="빠른 메모 입력..." required style="margin-bottom: 0;">
+                <button type="submit" class="btn" style="white-space: nowrap; width: auto;">등록</button>
+            </form>
+
+            <div class="timeline" id="timeline">
+                <div style="text-align: center; color: var(--text-muted);">로딩 중...</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { supabase } from './supabase-client.js';
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const caseId = urlParams.get('id');
+        let currentUser = null;
+
+        if (!caseId) {
+            window.location.href = 'case-list.html';
+        }
+
+        async function init() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Get current user name
+            const { data: userData } = await supabase
+                .from('users')
+                .select('name')
+                .eq('id', session.user.id)
+                .single();
+            
+            currentUser = userData ? userData.name : session.user.email;
+
+            await loadStagesAndCase();
+            await loadLogs();
+        }
+
+        async function loadStagesAndCase() {
+            // Load all stages for dropdown
+            const { data: stages } = await supabase.from('stages').select('*').order('id');
+            const stageSelect = document.getElementById('stageSelect');
+            
+            if (stages) {
+                stages.forEach(stage => {
+                    const opt = document.createElement('option');
+                    opt.value = stage.id;
+                    opt.textContent = stage.name;
+                    stageSelect.appendChild(opt);
+                });
+            }
+
+            // Load case details to set current stage
+            const { data: caseData } = await supabase
+                .from('cases')
+                .select('current_stage_id')
+                .eq('id', caseId)
+                .single();
+
+            if (caseData && caseData.current_stage_id) {
+                stageSelect.value = caseData.current_stage_id;
+                loadStageGuide(caseData.current_stage_id);
+            }
+
+            // Handle stage change
+            stageSelect.addEventListener('change', async (e) => {
+                const newStageId = e.target.value;
+                if (!newStageId) return;
+
+                await supabase
+                    .from('cases')
+                    .update({ current_stage_id: newStageId })
+                    .eq('id', caseId);
+
+                loadStageGuide(newStageId);
+                
+                // Add log for stage change
+                const stageName = stageSelect.options[stageSelect.selectedIndex].text;
+                addLog(`[시스템] 진행 단계가 '${stageName}'(으)로 변경되었습니다.`);
+            });
+        }
+
+        async function loadStageGuide(stageId) {
+            const { data: guide } = await supabase
+                .from('stage_guides')
+                .select('*')
+                .eq('stage_id', stageId)
+                .single();
+
+            const guideSection = document.getElementById('guideSection');
+            if (guide) {
+                guideSection.style.display = 'block';
+                document.getElementById('lawText').textContent = guide.law_text || '내용 없음';
+                document.getElementById('guideText').textContent = guide.guide_text || '내용 없음';
+                
+                let checkHtml = '';
+                if (guide.checklist && Array.isArray(guide.checklist)) {
+                    guide.checklist.forEach(item => {
+                        checkHtml += `<div style="margin-bottom: 0.25rem;"><input type="checkbox" style="width:auto; margin-right: 0.5rem;"> ${item}</div>`;
+                    });
+                } else if (guide.checklist) {
+                     checkHtml = guide.checklist;
+                }
+                document.getElementById('checklist').innerHTML = checkHtml || '내용 없음';
+            } else {
+                guideSection.style.display = 'none';
+            }
+        }
+
+        async function loadLogs() {
+            const { data: logs } = await supabase
+                .from('logs')
+                .select('*')
+                .eq('case_id', caseId)
+                .order('created_at', { ascending: false });
+
+            const timeline = document.getElementById('timeline');
+            timeline.innerHTML = '';
+
+            if (logs && logs.length > 0) {
+                logs.forEach(log => {
+                    const date = new Date(log.created_at).toLocaleString('ko-KR');
+                    const item = document.createElement('div');
+                    item.className = 'timeline-item';
+                    item.innerHTML = `
+                        <div class="timeline-date">${date} | 작성자: ${log.created_by}</div>
+                        <div class="timeline-content">${log.content.replace(/\n/g, '<br>')}</div>
+                    `;
+                    timeline.appendChild(item);
+                });
+            } else {
+                timeline.innerHTML = '<div style="color: var(--text-muted);">아직 로그가 없습니다.</div>';
+            }
+        }
+
+        document.getElementById('logForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('logInput');
+            const content = input.value.trim();
+            if (!content) return;
+            
+            input.value = '';
+            input.disabled = true;
+
+            await addLog(content);
+            
+            input.disabled = false;
+            input.focus();
+        });
+
+        async function addLog(content) {
+            const { error } = await supabase
+                .from('logs')
+                .insert([{
+                    case_id: caseId,
+                    content: content,
+                    created_by: currentUser
+                }]);
+            
+            if (!error) {
+                await loadLogs();
+            } else {
+                alert('로그 등록에 실패했습니다.');
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

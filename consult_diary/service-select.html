@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Select</title>
+    <link rel="stylesheet" href="app.css">
+</head>
+<body>
+    <div class="container" style="max-width: 500px; margin-top: 10vh;">
+        <div class="glass-panel text-center">
+            <h2 style="text-align: center; margin-bottom: 2rem;">서비스 선택</h2>
+            <div class="flex-col" id="menuContainer">
+                <a href="../index.html?service=ediary" class="btn btn-secondary">일기 (Ediary)</a>
+                <a href="case-list.html" class="btn">상담 (Consulting System)</a>
+            </div>
+            
+            <button onclick="logout()" class="btn btn-secondary" style="margin-top: 2rem; border: none; color: var(--text-muted);">로그아웃</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { supabase } from './supabase-client.js';
+
+        // Check auth and role
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            window.location.href = 'index.html';
+        }
+
+        const role = localStorage.getItem('userRole');
+        
+        if (role === 'admin') {
+            const menuContainer = document.getElementById('menuContainer');
+            const guideBtn = document.createElement('a');
+            guideBtn.href = '#'; // placeholder for guide management
+            guideBtn.className = 'btn btn-secondary';
+            guideBtn.textContent = '가이드 관리 (Guide Management)';
+            menuContainer.appendChild(guideBtn);
+        }
+
+        window.logout = async () => {
+            await supabase.auth.signOut();
+            localStorage.removeItem('userRole');
+        }
+    </script>
+</body>
+</html>

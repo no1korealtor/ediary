@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Consulting System</title>
+    <link rel="stylesheet" href="app.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="container" style="max-width: 400px; margin-top: 10vh;">
+        <div class="glass-panel text-center">
+            <h2 style="text-align: center; margin-bottom: 2rem;">시스템 로그인</h2>
+            <form id="loginForm" class="flex-col">
+                <input type="email" id="email" placeholder="이메일" required>
+                <input type="password" id="password" placeholder="비밀번호" required>
+                <button type="submit" class="btn" id="loginBtn">로그인</button>
+            </form>
+            <div id="errorMsg" style="color: #ef4444; margin-top: 1rem; text-align: center; display: none;"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { supabase } from './supabase-client.js';
+
+        // Check if already logged in
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            handleLoginSuccess(session.user);
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('errorMsg');
+            
+            errorMsg.style.display = 'none';
+            document.getElementById('loginBtn').disabled = true;
+            document.getElementById('loginBtn').textContent = '로그인 중...';
+
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password
+            });
+
+            if (error) {
+                errorMsg.textContent = error.message;
+                errorMsg.style.display = 'block';
+                document.getElementById('loginBtn').disabled = false;
+                document.getElementById('loginBtn').textContent = '로그인';
+            } else {
+                handleLoginSuccess(data.user);
+            }
+        });
+
+        async function handleLoginSuccess(user) {
+            // Get user role
+            const { data, error } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+
+            if (error) {
+                alert('Role 확인 중 에러가 발생했습니다: ' + error.message);
+                window.location.href = '../index.html';
+            } else if (!data || !data.role) {
+                // If role is null -> redirect to existing ediary main page
+                window.location.href = '../index.html';
+            } else if (data.role === 'admin' || data.role === 'consultant') {
+                // Store role locally for convenience
+                localStorage.setItem('userRole', data.role);
+                window.location.href = 'service-select.html';
+            } else {
+                window.location.href = '../index.html';
+            }
+        }
+    </script>
+</body>
+</html>
